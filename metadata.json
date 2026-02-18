@@ -1,0 +1,5 @@
+{
+  "name": "Shaan Sweets POS",
+  "description": "A comprehensive Bakery Point of Sale system featuring category-based item management, real-time stock tracking, dual-receipt generation, and detailed sales analytics for Admin and Staff.",
+  "requestFramePermissions": []
+}
