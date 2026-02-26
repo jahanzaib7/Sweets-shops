@@ -1,41 +1,39 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  LayoutDashboard, 
   ShoppingCart, 
   Package, 
   BarChart3, 
   Settings, 
   LogOut, 
-  UserCircle,
-  Plus,
-  Minus,
-  Trash2,
-  Printer,
-  ChevronRight,
-  TrendingUp,
-  Store,
-  CreditCard,
-  ShieldCheck
+  Store, 
+  UserCircle
 } from 'lucide-react';
-import { Category, UserRole, Item, CartItem, Sale, StockLog } from './types';
-import { INITIAL_ITEMS, TAX_RATE } from './constants';
+import { UserRole, Item, CartItem, Sale, StockLog, StaffMember } from './types';
+import { INITIAL_ITEMS } from './constants';
 import POS from './components/POS';
 import Inventory from './components/Inventory';
 import Reports from './components/Reports';
 import AdminSettings from './components/AdminSettings';
+import Login from './components/Login';
 
 const App: React.FC = () => {
   // Authentication State
-  const [role, setRole] = useState<UserRole>(UserRole.ADMIN);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUser, setCurrentUser] = useState<StaffMember | null>(null);
   const [activeTab, setActiveTab] = useState<'POS' | 'Inventory' | 'Reports' | 'Settings'>('POS');
-
+  
   // Business Data State
   const [items, setItems] = useState<Item[]>(() => {
     const saved = localStorage.getItem('bakery_items');
     return saved ? JSON.parse(saved) : INITIAL_ITEMS;
   });
   
+  const [categories, setCategories] = useState<string[]>(() => {
+    const saved = localStorage.getItem('bakery_categories');
+    return saved ? JSON.parse(saved) : ['Mitha (Sweets)', 'Savory Items', 'Baked Goods', 'Halwa Puri Items'];
+  });
+
   const [sales, setSales] = useState<Sale[]>(() => {
     const saved = localStorage.getItem('bakery_sales');
     return saved ? JSON.parse(saved) : [];
@@ -46,18 +44,22 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [staff, setStaff] = useState<StaffMember[]>(() => {
+    const saved = localStorage.getItem('bakery_staff');
+    return saved ? JSON.parse(saved) : [
+      { id: 'admin-001', name: 'Shaan Admin', username: 'admin', role: UserRole.ADMIN, joinedAt: Date.now() },
+      { id: 'staff-001', name: 'Ahmad Khan', username: 'ahmad', role: UserRole.STAFF, joinedAt: Date.now() }
+    ];
+  });
+
   // Persist State
   useEffect(() => {
     localStorage.setItem('bakery_items', JSON.stringify(items));
-  }, [items]);
-
-  useEffect(() => {
+    localStorage.setItem('bakery_categories', JSON.stringify(categories));
     localStorage.setItem('bakery_sales', JSON.stringify(sales));
-  }, [sales]);
-
-  useEffect(() => {
     localStorage.setItem('bakery_stock_logs', JSON.stringify(stockLogs));
-  }, [stockLogs]);
+    localStorage.setItem('bakery_staff', JSON.stringify(staff));
+  }, [items, categories, sales, stockLogs, staff]);
 
   // Handlers
   const handleUpdateStock = (itemId: string, quantity: number, type: 'IN' | 'OUT', reason: string) => {
@@ -83,6 +85,7 @@ const App: React.FC = () => {
   };
 
   const handleCreateSale = (cartItems: CartItem[], totals: any) => {
+    if (!currentUser) return {} as Sale;
     const newSale: Sale = {
       id: `INV-${Date.now()}`,
       timestamp: Date.now(),
@@ -91,40 +94,48 @@ const App: React.FC = () => {
       tax: totals.tax,
       discountTotal: totals.discount,
       grandTotal: totals.total,
-      staffName: role === UserRole.ADMIN ? 'Admin User' : 'Staff User'
+      staffName: currentUser.name,
+      staffId: currentUser.id
     };
 
-    // Record Sale
     setSales(prev => [newSale, ...prev]);
-
-    // Adjust Stock
     cartItems.forEach(item => {
       handleUpdateStock(item.id, item.quantity, 'OUT', `Sale ${newSale.id}`);
     });
-
     return newSale;
   };
 
-  const handleAddItem = (newItem: Item) => {
-    setItems(prev => [...prev, newItem]);
+  const handleAddItem = (newItem: Item) => setItems(prev => [...prev, newItem]);
+  const handleRemoveItem = (id: string) => setItems(prev => prev.filter(i => i.id !== id));
+  const handleUpdateItem = (updatedItem: Item) => setItems(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
+  const handleAddStaff = (newStaff: StaffMember) => setStaff(prev => [...prev, newStaff]);
+  const handleRemoveStaff = (id: string) => setStaff(prev => prev.filter(s => s.id !== id));
+  
+  const handleAddCategory = (cat: string) => {
+    if (!categories.includes(cat)) setCategories(prev => [...prev, cat]);
+  };
+  const handleRemoveCategory = (cat: string) => {
+    setCategories(prev => prev.filter(c => c !== cat));
   };
 
-  const handleRemoveItem = (id: string) => {
-    setItems(prev => prev.filter(i => i.id !== id));
-  };
-
-  const handleUpdateItem = (updatedItem: Item) => {
-    setItems(prev => prev.map(i => i.id === updatedItem.id ? updatedItem : i));
+  const handleLogin = (user: StaffMember) => {
+    setCurrentUser(user);
+    setIsLoggedIn(true);
+    setActiveTab('POS');
   };
 
   const logout = () => {
-    // Just a UI mock
-    alert("In a real app, this would clear session cookies.");
+    setIsLoggedIn(false);
+    setCurrentUser(null);
   };
+
+  if (!isLoggedIn) {
+    return <Login onLogin={handleLogin} staff={staff} />;
+  }
 
   return (
     <div className="flex h-screen overflow-hidden text-slate-900">
-      {/* Sidebar - Hidden on print */}
+      {/* Sidebar */}
       <aside className="w-64 bg-slate-900 text-white flex flex-col no-print shrink-0">
         <div className="p-6 flex items-center gap-3">
           <div className="p-2 bg-amber-500 rounded-lg">
@@ -132,7 +143,7 @@ const App: React.FC = () => {
           </div>
           <div>
             <h1 className="font-bold text-lg leading-tight">Shaan Sweets</h1>
-            <p className="text-xs text-slate-400">POS System</p>
+            <p className="text-xs text-slate-400">Bakery POS</p>
           </div>
         </div>
 
@@ -147,38 +158,33 @@ const App: React.FC = () => {
             active={activeTab === 'Inventory'} 
             onClick={() => setActiveTab('Inventory')} 
             icon={<Package className="w-5 h-5" />} 
-            label="Stock Management" 
+            label="Stock" 
           />
-          <SidebarLink 
-            active={activeTab === 'Reports'} 
-            onClick={() => setActiveTab('Reports')} 
-            icon={<BarChart3 className="w-5 h-5" />} 
-            label="Sales Analytics" 
-          />
-          {role === UserRole.ADMIN && (
-            <SidebarLink 
-              active={activeTab === 'Settings'} 
-              onClick={() => setActiveTab('Settings')} 
-              icon={<Settings className="w-5 h-5" />} 
-              label="Admin Controls" 
-            />
+          {currentUser?.role === UserRole.ADMIN && (
+            <>
+              <SidebarLink 
+                active={activeTab === 'Reports'} 
+                onClick={() => setActiveTab('Reports')} 
+                icon={<BarChart3 className="w-5 h-5" />} 
+                label="Analytics" 
+              />
+              <SidebarLink 
+                active={activeTab === 'Settings'} 
+                onClick={() => setActiveTab('Settings')} 
+                icon={<Settings className="w-5 h-5" />} 
+                label="Admin" 
+              />
+            </>
           )}
         </nav>
 
         <div className="p-4 mt-auto border-t border-slate-800">
-          <div className="flex items-center gap-3 p-3 bg-slate-800/50 rounded-xl mb-4">
+          <div className="flex items-center gap-3 p-3 bg-slate-800/50 rounded-xl mb-4 border border-slate-700/50">
             <UserCircle className="w-10 h-10 text-slate-400" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold truncate">{role === UserRole.ADMIN ? 'Administrator' : 'Staff Member'}</p>
-              <p className="text-xs text-slate-400">{role}</p>
+              <p className="text-sm font-semibold truncate">{currentUser?.name}</p>
+              <p className="text-[10px] text-amber-500 font-bold uppercase">{currentUser?.role}</p>
             </div>
-            <button 
-              onClick={() => setRole(role === UserRole.ADMIN ? UserRole.STAFF : UserRole.ADMIN)}
-              title="Toggle Role Demo"
-              className="p-1 hover:bg-slate-700 rounded transition-colors"
-            >
-              <ShieldCheck className="w-4 h-4 text-amber-500" />
-            </button>
           </div>
           <button 
             onClick={logout}
@@ -196,9 +202,9 @@ const App: React.FC = () => {
           <div className="flex items-center gap-2">
             <h2 className="font-bold text-xl text-slate-800">
               {activeTab === 'POS' && 'New Sale'}
-              {activeTab === 'Inventory' && 'Inventory Dashboard'}
-              {activeTab === 'Reports' && 'Business Intelligence'}
-              {activeTab === 'Settings' && 'System Configuration'}
+              {activeTab === 'Inventory' && 'Stock Management'}
+              {activeTab === 'Reports' && 'Business Analytics'}
+              {activeTab === 'Settings' && 'Admin Settings'}
             </h2>
             <div className="h-4 w-[1px] bg-slate-300 mx-2" />
             <span className="text-sm text-slate-500 font-medium">
@@ -225,24 +231,35 @@ const App: React.FC = () => {
             <POS 
               items={items} 
               onCheckout={handleCreateSale} 
-              role={role}
+              role={currentUser?.role || UserRole.STAFF} 
+              categories={categories}
             />
           )}
           {activeTab === 'Inventory' && (
             <Inventory 
               items={items} 
               onUpdateStock={handleUpdateStock} 
-              role={role}
+              role={currentUser?.role || UserRole.STAFF}
               onAddItem={handleAddItem}
               onRemoveItem={handleRemoveItem}
               onUpdateItem={handleUpdateItem}
+              categories={categories}
             />
           )}
-          {activeTab === 'Reports' && (
+          {activeTab === 'Reports' && currentUser?.role === UserRole.ADMIN && (
             <Reports sales={sales} items={items} />
           )}
-          {activeTab === 'Settings' && role === UserRole.ADMIN && (
-            <AdminSettings items={items} setItems={setItems} />
+          {activeTab === 'Settings' && currentUser?.role === UserRole.ADMIN && (
+            <AdminSettings 
+              items={items} 
+              setItems={setItems} 
+              staff={staff} 
+              onAddStaff={handleAddStaff} 
+              onRemoveStaff={handleRemoveStaff}
+              categories={categories}
+              onAddCategory={handleAddCategory}
+              onRemoveCategory={handleRemoveCategory}
+            />
           )}
         </div>
       </main>

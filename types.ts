@@ -1,4 +1,10 @@
 
+export enum UserRole {
+  ADMIN = 'ADMIN',
+  STAFF = 'STAFF'
+}
+
+// Added missing Category enum to fix import errors in multiple components
 export enum Category {
   MITHA = 'Mitha (Sweets)',
   SAVORY = 'Savory Items',
@@ -6,18 +12,23 @@ export enum Category {
   HALWA_PURI = 'Halwa Puri Items'
 }
 
-export enum UserRole {
-  ADMIN = 'ADMIN',
-  STAFF = 'STAFF'
+export interface StaffMember {
+  id: string;
+  name: string;
+  username: string;
+  password?: string; // For login simulation
+  role: UserRole;
+  joinedAt: number;
 }
 
 export interface Item {
   id: string;
   name: string;
-  category: Category;
+  category: Category | string;
   price: number;
   stock: number;
   unit: string;
+  image?: string;
 }
 
 export interface CartItem extends Item {
@@ -34,6 +45,7 @@ export interface Sale {
   discountTotal: number;
   grandTotal: number;
   staffName: string;
+  staffId?: string;
 }
 
 export interface StockLog {
